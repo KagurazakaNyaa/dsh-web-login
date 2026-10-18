@@ -1,0 +1,15 @@
+# Example: how this plugin composes in a profile's cordis.patch.yml.
+# The bundle already inserts the `web-login` row; this shows the optional
+# config override a user might add in their own patch layer (below the bundle).
+
+# --- bundle layer (handled by dsh-web-login's cordis.patch.yml) ---
+# - insert:
+#     - id: web-login
+#       name: 'dsh-web-login'
+
+# --- your own profile patch (optional tuning) ---
+- id: web-login
+  config:
+    cookieMaxAgeDays: 30
+    loginPath: ''
+    enabled: true

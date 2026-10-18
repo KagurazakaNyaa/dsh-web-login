@@ -1,0 +1,22 @@
+[Unit]
+Description=DeepSeek Harness Web UI (LAN, with web login)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h
+Environment=HOME=%h
+Environment=DSH_HOME=%h/.dsh
+Environment=DSH_WEB_LOGIN_PASSWORD=change-me
+Environment=DSH_WEB_LOGIN_USER=admin
+ExecStart=/usr/bin/dsh web --no-open --port 3080
+Restart=on-failure
+RestartSec=5
+# Harden: the login page is the only entrance; still, the agent has shell access.
+ProtectSystem=full
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

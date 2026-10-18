@@ -1,0 +1,57 @@
+{
+  "name": "dsh-web-login",
+  "version": "1.0.0",
+  "description": "Username/password login for the DeepSeek Harness Web UI, so it can be exposed to a LAN without depending on the per-boot launch token.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "lib",
+    "locale",
+    "scripts",
+    "systemd",
+    "cordis.patch.yml",
+    "icon.svg"
+  ],
+  "icon": "./icon.svg",
+  "meta": {
+    "title": "Web Login",
+    "description": "Adds a username/password login page to the Harness Web UI. Sessions last as long as the durable browser-session cookie, so LAN access no longer needs the URL token printed at each startup."
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "login",
+    "password",
+    "lan",
+    "systemd"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "compatibility": {
+      "dsh": ">=0.2.0-rc.1"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KagurazakaNyaa/dsh-web-login.git"
+  },
+  "homepage": "https://github.com/KagurazakaNyaa/dsh-web-login",
+  "bugs": {
+    "url": "https://github.com/KagurazakaNyaa/dsh-web-login/issues"
+  }
+}

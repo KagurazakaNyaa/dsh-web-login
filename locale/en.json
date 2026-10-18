@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Web Login",
+    "description": "Adds a username/password login page to the Harness Web UI so a LAN-exposed instance no longer depends on the per-boot launch token."
+  }
+}

@@ -1,0 +1,12 @@
+# dsh-web-login bundle patch — insert the login row.
+#
+# This plugin does NOT own deployment concerns:
+#   * binding 0.0.0.0 and widening the /api trust fence belongs to your
+#     profile layer (the dsh-web-lan-access bundle already does this); the
+#     `webserver` and `connection` rows are deliberately left untouched here so
+#     this patch never replaces a dynamic expression with a static list.
+#   * running dsh under a systemd user unit is environment setup, not plugin
+#     behavior. See systemd/dsh-web.service in this repo.
+- insert:
+    - id: web-login
+      name: 'dsh-web-login'
