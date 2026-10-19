@@ -197,7 +197,64 @@ dsh plugin --profile web remove dsh-web-login
 ## 开发
 
 ```sh
-node --test test/
+node --test
+```
+
+## 发布到 npm
+
+发布由 GitHub Actions 完成：**推送一个 `v*` 标签即触发**，无需在本地跑 `npm publish`。
+
+```sh
+# 1. 确认 main 干净、测试通过
+npm test
+
+# 2. 升版本 —— npm version 会改 package.json、提交、并打上对应的 v 标签
+npm version patch        # 1.0.0 -> 1.0.1
+# npm version minor       # 1.0.0 -> 1.1.0
+# npm version major       # 1.0.0 -> 2.0.0
+# npm version prerelease --preid=rc   # 1.0.0 -> 1.0.1-rc.0
+
+# 3. 推送提交和标签
+git push --follow-tags
+```
+
+之后在 [仓库 Actions 页](https://github.com/KagurazakaNyaa/dsh-web-login/actions)
+看到 `Publish to npm` 变绿，即表示
+[registry.npmjs.org/dsh-web-login](https://www.npmjs.com/package/dsh-web-login) 已更新。
+
+工作流里内置的几道防线：
+
+* **标签必须和 `package.json` 对齐**（`v1.0.1` ↔ `"1.0.1"`），否则直接失败。
+* **不覆盖已发布版本** —— npm 的版本是不可变的，重复发布没有意义，提前明确报错。
+* **发布前必跑测试**（`npm test`，同时 `prepublishOnly` 也兜一道）。
+* **npm provenance**（`id-token: write` + `--provenance`）：产物会带上
+  构建来源的加密签名，使用者可验证这个包确实出自本仓库的这个标签提交。
+
+另有一个 `Test` workflow，会在 push 到 main 和每个 PR 时跑
+Node 20/22 × Linux/macOS/Windows 矩阵测试，并做一次 `npm pack --dry-run`
+确保 `files` 列表没有漏文件。
+
+### 一次性配置
+
+发布需要仓库里有一个名为 `NPM_TOKEN` 的 secret：
+
+```sh
+# 在 npmjs.com 生成一个 Granular access token，只允许发布 @dsh 生态包，
+# 勾选 "Bypass 2FA for automation"（否则 CI 会被 OTP 拦住）
+gh secret set NPM_TOKEN --repo KagurazakaNyaa/dsh-web-login
+```
+
+仓库名 `dsh-web-login` 在 npmjs.org 上未被占用，可以直接首次发布。
+
+### 关于本机的私有 Nexus
+
+`~/.npmrc` 里把默认 registry 设成了
+`https://repo.kagurazakalan.com/repository/npm/`，所以本机直接
+`npm publish` 会发到那里。Action 已显式覆盖 `registry-url` 为 npmjs.org，
+不受这个配置影响；但本地手动发布时请带上 `--registry` 明确目标：
+
+```sh
+npm publish --registry=https://registry.npmjs.org
 ```
 
 ## License
