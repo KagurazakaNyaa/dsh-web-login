@@ -81,6 +81,38 @@ systemctl --user enable --now dsh-web.service
     enabled: true
 ```
 
+## 反向代理（nginx）
+
+DSH 的 `/api` 有一道信任栅栏：**请求的 `Host` 必须与浏览器发出的 `Origin` 一致**，否则一律 403。
+登录成功但"所有接口都 403"，几乎都是反代把 `Host` 改写成 `localhost` / `127.0.0.1` 造成的 ——
+浏览器发的是 `Origin: https://你的域名`，而 DSH 收到的 `Host` 是 `localhost`，两者不匹配。
+
+反代必须**原样透传 `Host`**：
+
+```nginx
+location / {
+    proxy_pass         http://localhost:3080/;
+    proxy_http_version 1.1;
+    proxy_set_header   Upgrade           $http_upgrade;
+    proxy_set_header   Connection        $connection_upgrade;
+    proxy_set_header   Host              $host;              # 关键：不要写成 localhost
+    proxy_set_header   X-Forwarded-Proto $scheme;            # 供 Secure Cookie 判断
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_read_timeout 3600;
+}
+```
+
+同时启动 dsh 时要声明这个域名，让栅栏放行：
+
+```sh
+dsh web --port 3080 --trusted-host 你的域名
+```
+
+`X-Forwarded-Proto: https` 存在时，登录 Cookie 会自动带上 `Secure` 属性。
+
+更省事的做法是配好 `map $http_upgrade $connection_upgrade`，WebSocket（`/api/remote.mux`）才能升级成功。
+
 ## 安全提醒
 
 * 无 TLS，明文 HTTP 可被嗅探；仅用于可信网络，建议加防火墙或走 Tailscale / 反代。
