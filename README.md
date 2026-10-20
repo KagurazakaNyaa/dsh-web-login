@@ -254,19 +254,83 @@ Node 20/22 × Linux/macOS/Windows 矩阵测试，并做一次 `npm pack --dry-ru
 > `npm error code EOTP`。token 没勾 "Bypass 2FA for automation" 时，npm 在发布环节
 > 仍会索要一次性密码，而 CI 里没人能输入。改用 OIDC 后这个问题不再存在。
 
-在 npmjs.com 上
-（`Packages → @kagurazakanyaa/dsh-web-login → Settings → Trusted publishing`）
-添加一个 GitHub Actions 发布者：
+#### 为什么首次发布不能用 OIDC
 
-| 字段 | 值 |
-| --- | --- |
-| Organization or user | `KagurazakaNyaa` |
-| Repository | `dsh-web-login` |
-| Workflow filename | `publish.yml`（只填文件名，要带 `.yml`） |
-| Environment name | 留空 |
-| Allowed actions | **必须勾上 `npm publish`** |
+**npm 的 trusted publisher 只能绑定到已经存在于 registry 上的包名。** npm CLI 的
+前置条件写得很直白：
 
-几个容易踩的点：
+> Package must exist: The package you're configuring must already exist on the
+> npm registry.
+
+这就是第一次推送 `v1.0.0` 标签时报 `ENEEDAUTH` 的原因：registry 里还没有
+`@kagurazakanyaa/dsh-web-login` 这个包，OIDC 找不到信任关系，静默回退到 token，
+而 token 已经被删掉了。
+
+`npm publish` 本身至今仍不支持给不存在的包名建包，上游的功能请求还开着
+（[npm/cli#8544](https://github.com/npm/cli/issues/8544)）。**但 `npm stage publish`
+已经支持了** —— 见下面第 0 步，这也是现在推荐的引导方式。
+
+#### 一次性引导：让包名先存在
+
+**第 0 步（推荐）：用 `npm stage publish` 建包，全程不需要 2FA。**
+
+npm 从 2026-10 起支持 `npm stage publish` 创建新包：它会先放一个
+`0.0.0-stage` 占位版本（公开可装，但内容不公开），等你批准后才正式发布。
+`npm stage publish` **不需要 2FA**，只要一个普通的 Granular access token ——
+不需要勾 "Bypass 2FA for automation"，所以不踩正在被废弃的那条路。
+
+```sh
+# npm >= 11.15.0；在仓库根目录执行
+npm stage publish @kagurazakanyaa/dsh-web-login@1.0.0 \
+  --access public \
+  --registry=https://registry.npmjs.org
+```
+
+然后批准它（这一步**需要** 2FA，用网页或 CLI 都行）：
+
+```sh
+npm stage list @kagurazakanyaa/dsh-web-login   # 拿到 stage-id
+npm stage approve <stage-id> --registry=https://registry.npmjs.org
+```
+
+包名自此存在于 registry，可以进入下一步。
+
+**第 1 步：挂 trusted publisher。**
+
+```sh
+# npm >= 11.15.0；--allow-publish 不能省
+npm trust github @kagurazakanyaa/dsh-web-login \
+  --repo KagurazakaNyaa/dsh-web-login \
+  --file publish.yml \
+  --allow-publish
+```
+
+网页端等价操作：`Packages → @kagurazakanyaa/dsh-web-login → Settings → Trusted publishing`，
+填 `KagurazakaNyaa` / `dsh-web-login` / `publish.yml`，
+Allowed actions 选 **`npm publish`**。
+
+**第 2 步：收紧权限。**
+
+在 `Settings → Publishing access` 里选
+**"Require two-factor authentication and disallow tokens"**，禁掉长期 token。
+
+**第 3 步：清理 secret。**
+
+```sh
+gh secret remove NPM_TOKEN --repo KagurazakaNyaa/dsh-web-login
+```
+
+之后推送 `v*` 标签即由 OIDC 自动发布，仓库里不再保存任何 npm 凭据。
+
+> **注意**：引导过程本身就把 `1.0.0` 发上去了，所以已经存在的 `v1.0.0` 标签不会再
+> 触发发布（工作流会以"已发布"拒绝）。下一个版本请先 `npm version patch`
+> 升到 `1.0.1`，再推标签，那一次开始才是真正的 OIDC 自动发布。
+
+> 不想用 staged 流程的话，也可以退回老办法：用带 "Bypass 2FA for automation" 的
+> token 直接 `npm publish` 首个版本。但 npm 已公告 2027 年 1 月起 2FA-bypass token
+> 会彻底失去直接发布能力，所以别把它写进长期方案。
+
+### 容易踩的点
 
 * **新配置 2 天内必须完成首次成功发布**，否则配置过期，只能删掉重建。
 * 2026-09-03 之后新建的配置默认**只允许 `npm stage publish`**；不显式放开
@@ -278,10 +342,10 @@ Node 20/22 × Linux/macOS/Windows 矩阵测试，并做一次 `npm pack --dry-ru
   npm 会误以为"已有认证"、**跳过 OIDC**，报 `ENEEDAUTH` / 404。`publish.yml`
   里因此显式删掉了这一行
   （见 [npm/documentation#1960](https://github.com/npm/documentation/issues/1960)）。
-
-配置好后建议在 `Settings → Publishing access` 里选
-**"Require two-factor authentication and disallow tokens"**，彻底禁掉长期 token ——
-这不影响 trusted publishing，因为它走的是 OIDC 而不是 token。
+* OIDC 失败时 npm **只记 verbose 日志**，然后静默回退到 token 认证。
+  `ENEEDAUTH` 同时意味着"没配 token"和"OIDC 没匹配上"，排查时别被误导；
+  加 `--loglevel verbose` 才能看到断在哪一步。
+* 每个包同时最多 10 个 trusted publisher；已建立的连接不能改，只能删了重建。
 
 ## License
 

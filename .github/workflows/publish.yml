@@ -98,6 +98,12 @@ jobs:
 
       # Trusted publishing signs a provenance statement automatically; there is
       # no need to pass --provenance by hand.
+      #
+      # Bootstrap caveat: OIDC only works for a package name that ALREADY
+      # exists on npmjs. A brand-new package has to be created once first —
+      # `npm stage publish` can do that without 2FA, then a maintainer approves
+      # it. See the "首次发布" section in README.md. After that one-off step
+      # every release, including version bumps, goes through OIDC here.
       - name: Publish to npm
         run: |
           set -euo pipefail
