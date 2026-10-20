@@ -2,10 +2,10 @@
 # The bundle already inserts the `web-login` row; this shows the optional
 # config override a user might add in their own patch layer (below the bundle).
 
-# --- bundle layer (handled by dsh-web-login's cordis.patch.yml) ---
+# --- bundle layer (handled by @kagurazakanyaa/dsh-web-login's cordis.patch.yml) ---
 # - insert:
 #     - id: web-login
-#       name: 'dsh-web-login'
+#       name: '@kagurazakanyaa/dsh-web-login'
 
 # --- your own profile patch (optional tuning) ---
 - id: web-login

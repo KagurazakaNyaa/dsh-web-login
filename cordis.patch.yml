@@ -1,4 +1,4 @@
-# dsh-web-login bundle patch — insert the login row.
+# @kagurazakanyaa/dsh-web-login bundle patch — insert the login row.
 #
 # This plugin does NOT own deployment concerns:
 #   * binding 0.0.0.0 and widening the /api trust fence belongs to your
@@ -9,4 +9,4 @@
 #     behavior. See systemd/dsh-web.service in this repo.
 - insert:
     - id: web-login
-      name: 'dsh-web-login'
+      name: '@kagurazakanyaa/dsh-web-login'

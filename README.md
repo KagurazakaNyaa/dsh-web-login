@@ -1,4 +1,4 @@
-# dsh-web-login
+# @kagurazakanyaa/dsh-web-login
 
 给 DeepSeek Harness 网页界面添加**用户名 / 密码登录**，便于把实例公开到局域网访问。
 
@@ -48,6 +48,12 @@ RPC 路径，登录成功后它们自动生效。
 ## 安装
 
 用 DSH 的插件管理器安装（推荐）：
+
+```sh
+dsh plugin --profile web add @kagurazakanyaa/dsh-web-login
+```
+
+也可以直接从 GitHub 源码装（不走 npm）：
 
 ```sh
 dsh plugin --profile web add github:KagurazakaNyaa/dsh-web-login
@@ -121,7 +127,7 @@ systemctl --user enable --now dsh-web.service
 
 ```yaml
 - id: web-login
-  name: 'dsh-web-login'
+  name: '@kagurazakanyaa/dsh-web-login'
   config:
     cookieMaxAgeDays: 30   # 登录有效期（天），与 client-connection 保持一致
     loginPath: ''          # 凭据文件路径；留空 = $DSH_HOME/web-login.json
@@ -189,7 +195,7 @@ dsh web --port 3080 --trusted-host 你的域名
 ## 卸载 / 回滚
 
 ```sh
-dsh plugin --profile web remove dsh-web-login
+dsh plugin --profile web remove @kagurazakanyaa/dsh-web-login
 ```
 
 移除后行为完全恢复为原生 token 登录；已种下的 cookie 仍然有效（它本来就是 DSH 原生的）。
@@ -202,7 +208,11 @@ node --test
 
 ## 发布到 npm
 
-发布由 GitHub Actions 完成：**推送一个 `v*` 标签即触发**，无需在本地跑 `npm publish`。
+包名是 **`@kagurazakanyaa/dsh-web-login`**（scoped + public，
+`publishConfig.access` 已设为 `public`）。
+
+发布**只由 GitHub Actions 完成**：推送一个 `v*` 标签即触发，本地不需要（也不应该）
+手动 `npm publish`。
 
 ```sh
 # 1. 确认 main 干净、测试通过
@@ -220,42 +230,58 @@ git push --follow-tags
 
 之后在 [仓库 Actions 页](https://github.com/KagurazakaNyaa/dsh-web-login/actions)
 看到 `Publish to npm` 变绿，即表示
-[registry.npmjs.org/dsh-web-login](https://www.npmjs.com/package/dsh-web-login) 已更新。
+[@kagurazakanyaa/dsh-web-login](https://www.npmjs.com/package/@kagurazakanyaa/dsh-web-login) 已更新。
 
 工作流里内置的几道防线：
 
 * **标签必须和 `package.json` 对齐**（`v1.0.1` ↔ `"1.0.1"`），否则直接失败。
 * **不覆盖已发布版本** —— npm 的版本是不可变的，重复发布没有意义，提前明确报错。
 * **发布前必跑测试**（`npm test`，同时 `prepublishOnly` 也兜一道）。
-* **npm provenance**（`id-token: write` + `--provenance`）：产物会带上
-  构建来源的加密签名，使用者可验证这个包确实出自本仓库的这个标签提交。
+* **检查 npm CLI 版本**：trusted publishing 要求 npm ≥ 11.5.1，所以 runner 用 Node 24。
+* **npm provenance**：走 OIDC 发布时 npm 会自动签名，产物带上构建来源的加密签名，
+  使用者可验证这个包确实出自本仓库的这个标签提交。
 
 另有一个 `Test` workflow，会在 push 到 main 和每个 PR 时跑
 Node 20/22 × Linux/macOS/Windows 矩阵测试，并做一次 `npm pack --dry-run`
 确保 `files` 列表没有漏文件。
 
-### 一次性配置
+### 一次性配置：npm Trusted Publishing（OIDC）
 
-发布需要仓库里有一个名为 `NPM_TOKEN` 的 secret：
+发布用 **npm Trusted Publishing**，仓库里**不需要 `NPM_TOKEN`**，也就没有长期 token
+需要轮换或泄露：GitHub Actions 每次发布会用 OIDC 换一个短期凭据。
 
-```sh
-# 在 npmjs.com 生成一个 Granular access token，只允许发布 @dsh 生态包，
-# 勾选 "Bypass 2FA for automation"（否则 CI 会被 OTP 拦住）
-gh secret set NPM_TOKEN --repo KagurazakaNyaa/dsh-web-login
-```
+> 早先的设计是 `NPM_TOKEN` + `npm publish`，在开了 2FA 的账号上会直接失败：
+> `npm error code EOTP`。token 没勾 "Bypass 2FA for automation" 时，npm 在发布环节
+> 仍会索要一次性密码，而 CI 里没人能输入。改用 OIDC 后这个问题不再存在。
 
-仓库名 `dsh-web-login` 在 npmjs.org 上未被占用，可以直接首次发布。
+在 npmjs.com 上
+（`Packages → @kagurazakanyaa/dsh-web-login → Settings → Trusted publishing`）
+添加一个 GitHub Actions 发布者：
 
-### 关于本机的私有 Nexus
+| 字段 | 值 |
+| --- | --- |
+| Organization or user | `KagurazakaNyaa` |
+| Repository | `dsh-web-login` |
+| Workflow filename | `publish.yml`（只填文件名，要带 `.yml`） |
+| Environment name | 留空 |
+| Allowed actions | **必须勾上 `npm publish`** |
 
-`~/.npmrc` 里把默认 registry 设成了
-`https://repo.kagurazakalan.com/repository/npm/`，所以本机直接
-`npm publish` 会发到那里。Action 已显式覆盖 `registry-url` 为 npmjs.org，
-不受这个配置影响；但本地手动发布时请带上 `--registry` 明确目标：
+几个容易踩的点：
 
-```sh
-npm publish --registry=https://registry.npmjs.org
-```
+* **新配置 2 天内必须完成首次成功发布**，否则配置过期，只能删掉重建。
+* 2026-09-03 之后新建的配置默认**只允许 `npm stage publish`**；不显式放开
+  `npm publish` 的话，正常发布会因权限不足失败。
+* `package.json` 里的 `repository.url` 必须和 GitHub 仓库完全一致，OIDC 校验会比对。
+* 只支持 GitHub 托管的 runner，自托管 runner 不行。
+* `actions/setup-node` 配了 `registry-url` 后会在 `.npmrc` 写一行
+  `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`。没有 token 时它展开成空串，
+  npm 会误以为"已有认证"、**跳过 OIDC**，报 `ENEEDAUTH` / 404。`publish.yml`
+  里因此显式删掉了这一行
+  （见 [npm/documentation#1960](https://github.com/npm/documentation/issues/1960)）。
+
+配置好后建议在 `Settings → Publishing access` 里选
+**"Require two-factor authentication and disallow tokens"**，彻底禁掉长期 token ——
+这不影响 trusted publishing，因为它走的是 OIDC 而不是 token。
 
 ## License
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Set the username/password for dsh-web-login.
+// Set the username/password for @kagurazakanyaa/dsh-web-login.
 //
 // Usage:
 //   node scripts/set-login.mjs --user admin --password '...' [--path /abs/web-login.json]

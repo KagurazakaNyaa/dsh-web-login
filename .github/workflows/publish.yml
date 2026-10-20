@@ -6,13 +6,30 @@ name: Publish to npm
 #
 # The tag MUST match the version in package.json (v1.2.3 <-> "1.2.3"); the
 # workflow fails loudly otherwise so a mis-tagged release can never ship.
+#
+# Authentication uses npm Trusted Publishing (OIDC), so there is **no
+# NPM_TOKEN secret** to create, rotate, or leak. The trust relationship is
+# configured once on npmjs.com (Packages -> @kagurazakanyaa/dsh-web-login
+# -> Settings -> Trusted publishing) for the GitHub Actions publisher:
+#
+#   Organization or user : KagurazakaNyaa
+#   Repository           : dsh-web-login
+#   Workflow filename    : publish.yml
+#   Allowed actions      : must include "npm publish" (not stage-only)
+#
+# Two rules make this easy to get wrong:
+#   * A freshly created configuration expires unless its first publish
+#     succeeds within 2 days.
+#   * Configurations created after 2026-09-03 only get `npm stage publish` by
+#     default; direct `npm publish` has to be allowed explicitly
+#     (`--allow-publish` on `npm trust github`).
 
 on:
   push:
     tags:
       - "v*"
 
-# Least privilege: read the repo, and mint an OIDC token for provenance.
+# Least privilege: read the repo, and mint an OIDC token to authenticate to npm.
 permissions:
   contents: read
   id-token: write
@@ -23,13 +40,45 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the tagged commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
+      # Node 24 ships an npm CLI new enough for OIDC (>= 11.5.1).
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           registry-url: https://registry.npmjs.org
+          package-manager-cache: false # never cache in release builds
+
+      - name: Verify the npm CLI supports trusted publishing
+        run: |
+          set -euo pipefail
+          version="$(npm --version)"
+          echo "npm $version"
+          node -e '
+            const [major, minor] = process.argv[1].split(".").map(Number);
+            if (major < 11 || (major === 11 && minor < 5)) {
+              console.error(
+                `npm ${process.argv[1]} is too old for trusted publishing; ` +
+                "node 24+ (npm >= 11.5.1) is required."
+              );
+              process.exit(1);
+            }
+          ' "$version"
+
+      # actions/setup-node writes `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`
+      # into .npmrc. With no NODE_AUTH_TOKEN (the whole point of OIDC) that
+      # expands to an empty token, and npm then treats auth as configured,
+      # skips the OIDC exchange, and fails with ENEEDAUTH. Dropping the line is
+      # what lets trusted publishing kick in. See npm/documentation#1960.
+      - name: Drop the placeholder auth token so OIDC is used
+        run: |
+          set -euo pipefail
+          npmrc="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+          if [ -f "$npmrc" ] && grep -q '_authToken' "$npmrc"; then
+            sed -i '/_authToken/d' "$npmrc"
+          fi
+          echo "npmrc: $npmrc"
 
       # Cheap and dependency-free: catches a broken tag before we contact npm.
       - name: Verify the tag matches package.json
@@ -47,6 +96,8 @@ jobs:
       - name: Run tests
         run: npm test
 
+      # Trusted publishing signs a provenance statement automatically; there is
+      # no need to pass --provenance by hand.
       - name: Publish to npm
         run: |
           set -euo pipefail
@@ -57,6 +108,4 @@ jobs:
             echo "::error::$name@$version is already published"
             exit 1
           fi
-          npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          npm publish --access public

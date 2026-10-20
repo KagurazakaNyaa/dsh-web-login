@@ -1,4 +1,4 @@
-# dsh-web-login
+# @kagurazakanyaa/dsh-web-login
 
 English | [简体中文](#简体中文)
 
@@ -27,6 +27,12 @@ browser-session cookie。而 cookie 的**签名密钥是持久化的**，存放�
 每次启动的 token**。
 
 ## 安装
+
+```sh
+dsh plugin --profile web add @kagurazakanyaa/dsh-web-login
+```
+
+也可以直接从 GitHub 源码装（不走 npm）：
 
 ```sh
 dsh plugin --profile web add github:KagurazakaNyaa/dsh-web-login
@@ -74,7 +80,7 @@ systemctl --user enable --now dsh-web.service
 
 ```yaml
 - id: web-login
-  name: 'dsh-web-login'
+  name: '@kagurazakanyaa/dsh-web-login'
   config:
     cookieMaxAgeDays: 30
     loginPath: ''
