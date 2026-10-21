@@ -1,6 +1,6 @@
 {
   "name": "@kagurazakanyaa/dsh-web-login",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Username/password login for the DeepSeek Harness Web UI, so it can be exposed to a LAN without depending on the per-boot launch token.",
   "license": "AGPL-3.0-or-later",
   "type": "module",
